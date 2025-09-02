@@ -41,3 +41,48 @@ def build_ui(self):
             self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
         else:
             self.canvas.yview_scroll(-1 * (event.delta), "units")
+            def add_text_bubble(self, text: str, sent_by_me: bool):
+        row = tk.Frame(self.chat_frame, bg=self.chat_frame['bg']); row.pack(fill="x", pady=6, padx=8)
+        bubble_bg = "#dcf8c6" if sent_by_me else "white"
+        bubble = tk.Label(row, text=text, justify="left", bg=bubble_bg, wraplength=240, font=("Helvetica",12), padx=BUBBLE_PADX, pady=BUBBLE_PADY)
+        if sent_by_me: bubble.pack(side="right", anchor="e")
+        else: bubble.pack(side="left", anchor="w")
+        self.canvas.update_idletasks(); self.canvas.yview_moveto(1.0)
+
+    def add_image_bubble(self, image_bytes: bytes, filename: str, sent_by_me: bool):
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+        except Exception:
+            self.add_text_bubble("[Invalid image]", sent_by_me); return
+        img.thumbnail((MAX_THUMB, MAX_THUMB)); tk_img = ImageTk.PhotoImage(img); key = f"{id(tk_img)}"; self.thumbs[key] = tk_img
+        row = tk.Frame(self.chat_frame, bg=self.chat_frame['bg']); row.pack(fill="x", pady=6, padx=8)
+        frame = tk.Frame(row, bg=("#dcf8c6" if sent_by_me else "white"), padx=6, pady=6)
+        if sent_by_me: frame.pack(side="right", anchor="e")
+        else: frame.pack(side="left", anchor="w")
+        lbl = tk.Label(frame, image=tk_img, bd=0); lbl.image = tk_img; lbl.pack()
+        def open_full():
+            top = tk.Toplevel(self.root); top.title(filename); pil = Image.open(io.BytesIO(image_bytes))
+            w,h = pil.size; screen_w = top.winfo_screenwidth() - 200; screen_h = top.winfo_screenheight() - 200
+            ratio = min(screen_w/w, screen_h/h, 1.0); new_w, new_h = int(w*ratio), int(h*ratio)
+            pil = pil.resize((new_w,new_h), Image.LANCZOS); tkfull = ImageTk.PhotoImage(pil); lblfull = tk.Label(top, image=tkfull); lblfull.image = tkfull; lblfull.pack()
+        lbl.bind("<Button-1>", lambda e: open_full())
+        self.canvas.update_idletasks(); self.canvas.yview_moveto(1.0)
+    def on_send_text(self):
+        text = self.entry_var.get().strip()
+        if not text: return
+        try:
+            send_packet(self.sock, MSG_TEXT, text.encode("utf-8"))
+            self.add_text_bubble(text, sent_by_me=True)
+            self.entry_var.set("")
+        except Exception as e:
+            messagebox.showerror("Send error", str(e))
+
+    def on_send_image(self):
+        path = filedialog.askopenfilename(title="Choose image", filetypes=[("Images","*.png;*.jpg;*.jpeg;*.gif;*.bmp")])
+        if not path: return
+        try:
+            with open(path, "rb") as f: data = f.read()
+            fname = os.path.basename(path); fname_b = fname.encode('utf-8'); payload = pack_ushort(len(fname_b)) + fname_b + data
+            send_packet(self.sock, MSG_IMAGE, payload); self.add_image_bubble(data, fname, sent_by_me=True)
+        except Exception as e:
+            messagebox.showerror("Send image error", str(e))
