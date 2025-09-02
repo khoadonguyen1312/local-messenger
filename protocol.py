@@ -1,5 +1,6 @@
 import socket
 import struct
+from typing import Optional,Tuple
 
 
 MSG_TEXT = 1
