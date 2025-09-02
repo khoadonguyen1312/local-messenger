@@ -1,3 +1,5 @@
+# client_gui.py
+
 import socket, threading, struct, os, io, json, base64, time
 import tkinter as tk
 from tkinter import ttk, filedialog, simpledialog, messagebox
